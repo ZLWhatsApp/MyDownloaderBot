@@ -3,68 +3,55 @@ from telebot import types
 from yt_dlp import YoutubeDL
 import os
 
-# التوكن الخاص بك
+# توكن البوت الخاص بك
 TOKEN = '8216426518:AAFdpWpZ8d3Jc2kTZXrxCW5mFvuQ9UPXcMI'
 bot = telebot.TeleBot(TOKEN)
 
-# --- دالة إنشاء الأزرار الرئيسية ---
+# --- أزرار القائمة الرئيسية ---
 def main_menu():
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    btn1 = types.KeyboardButton("🔗 كيفية التحميل؟")
-    btn2 = types.KeyboardButton("📊 المنصات المدعومة")
-    btn3 = types.KeyboardButton("👨‍💻 الدعم الفني")
+    btn1 = types.KeyboardButton("📖 كيفية الاستخدام")
+    btn2 = types.KeyboardButton("🌐 المنصات المدعومة")
+    btn3 = types.KeyboardButton("🆘 الدعم الفني")
     markup.add(btn1, btn2, btn3)
     return markup
 
-# --- استقبال أمر البداية /start ---
+# --- رسالة الترحيب الرسمية ---
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    user_name = message.from_user.first_name  # هنا يأخذ اسم المستخدم الحقيقي
+    # استخدام اسم المستخدم الحقيقي بدل الاسم الثابت
+    user_name = message.from_user.first_name
     welcome_text = (
-        f"🌟 **أهلاً بك يا {user_name} في بوت التحميل الذكي**\n\n"
-        "أنا هنا لمساعدتك في تحميل الفيديوهات من مختلف منصات التواصل الاجتماعي بأعلى جودة ممكنة.\n\n"
-        "👇 **كل ما عليك هو إرسال رابط الفيديو مباشرة هنا.**"
+        f"🙋‍♂️ **أهلاً بك يا {user_name} في بوت التنزيلات العالمي**\n\n"
+        "أنا بوت احترافي مصمم لخدمتك في تحميل الفيديوهات والملفات من مختلف المنصات.\n\n"
+        "👇 **أرسل رابط الفيديو الآن وسأبدأ بالتحميل فوراً!**"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=main_menu(), parse_mode='Markdown')
 
-# --- معالجة الأزرار والقوائم ---
+# --- معالجة الأزرار والروابط ---
 @bot.message_handler(func=lambda message: True)
-def handle_all_messages(message):
+def handle_all(message):
     chat_id = message.chat.id
     
-    if message.text == "🔗 كيفية التحميل؟":
-        guide = (
-            "💡 **طريقة الاستخدام بسيطة جداً:**\n\n"
-            "1️⃣ اذهب للمنصة (يوتيوب، فيسبوك، إلخ..).\n"
-            "2️⃣ قم بنسخ رابط الفيديو (Share -> Copy Link).\n"
-            "3️⃣ قم بلصق الرابط هنا في البوت.\n"
-            "4️⃣ انتظر ثواني وسيصلك الفيديو جاهزاً."
-        )
+    if message.text == "📖 كيفية الاستخدام":
+        guide = "💡 **ببساطة:** انسخ رابط أي فيديو (يوتيوب، فيسبوك، تيك توك، إلخ) وأرسله هنا مباشرة، وسأقوم بإرسال الفيديو لك كملف."
         bot.send_message(chat_id, guide, parse_mode='Markdown')
-
-    elif message.text == "📊 المنصات المدعومة":
-        platforms = (
-            "✅ **يدعم البوت التحميل من:**\n"
-            "• YouTube (Shorts & Videos)\n"
-            "• Facebook & Instagram\n"
-            "• TikTok (بدون علامة مائية)\n"
-            "• X (Twitter سابقاً)\n"
-            "• والعديد من المواقع الأخرى..."
-        )
+        
+    elif message.text == "🌐 المنصات المدعومة":
+        platforms = "✅ **ندعم حالياً:**\n• YouTube & Shorts\n• Facebook\n• Instagram\n• TikTok\n• X (Twitter)\n• والعديد غيرها..."
         bot.send_message(chat_id, platforms, parse_mode='Markdown')
 
-    elif message.text == "👨‍💻 الدعم الفني":
-        bot.send_message(chat_id, "👤 للتواصل مع المطور أو الإبلاغ عن مشكلة: \n\n @حسابك_هنا")
+    elif message.text == "🆘 الدعم الفني":
+        bot.send_message(chat_id, "👨‍💻 للمساعدة تواصل مع المطور: @ZLWhatsApp")
 
-    # --- معالجة الروابط (التحميل الفعلي) ---
+    # إذا أرسل المستخدم رابطاً
     elif message.text.startswith(('http://', 'https://')):
         process_download(message)
 
-# --- دالة التحميل الاحترافية ---
 def process_download(message):
     url = message.text
     chat_id = message.chat.id
-    status_msg = bot.reply_to(message, "⏳ **جاري فحص الرابط واستخراج الفيديو..**")
+    status_msg = bot.reply_to(message, "⏳ **جاري معالجة الرابط، يرجى الانتظار...**")
 
     ydl_opts = {
         'format': 'best',
@@ -80,18 +67,12 @@ def process_download(message):
             
             with open(filename, 'rb') as video:
                 bot.send_chat_action(chat_id, 'upload_video')
-                bot.send_video(
-                    chat_id, 
-                    video, 
-                    caption=f"✅ **تم التحميل بنجاح**\n\n🎬: {info.get('title', 'Video')}",
-                    parse_mode='Markdown'
-                )
+                bot.send_video(chat_id, video, caption=f"✅ **تم التحميل بنجاح**\n🎬: {info.get('title', 'فيديو')}", parse_mode='Markdown')
             
             os.remove(filename)
             bot.delete_message(chat_id, status_msg.message_id)
-
     except Exception as e:
-        bot.edit_message_text(f"❌ **عذراً، حدث خطأ!**\nتأكد أن الرابط عام وصحيح.\n\nالمشكلة: `رابط غير مدعوم أو محمي`", chat_id, status_msg.message_id)
+        bot.edit_message_text(f"❌ **عذراً، حدث خطأ!**\nتأكد أن الرابط عام (Public) وليس من حساب خاص.", chat_id, status_msg.message_id)
 
 if __name__ == "__main__":
     bot.polling(none_stop=True)
