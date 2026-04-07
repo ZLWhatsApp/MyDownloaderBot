@@ -3,7 +3,7 @@ from yt_dlp import YoutubeDL
 import os
 
 # ضع التوكن الخاص بك هنا بين العلامتين
-TOKEN = 'ضع_التوكن_هنا'
+TOKEN = '8216426518:AAFdpWpZ8d3Jc2kTZXrxCW5mFvuQ9UPXcMI'
 bot = telebot.TeleBot(TOKEN)
 
 @bot.message_handler(commands=['start'])
