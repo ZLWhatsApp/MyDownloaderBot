@@ -1,4 +1,5 @@
 import telebot
+import subprocess
 from telebot import types
 from yt_dlp import YoutubeDL
 import os
@@ -139,7 +140,12 @@ def start_download(message, url, download_type):
     chat_id = message.chat.id
     status_msg = bot.reply_to(message, "⏳ **جاري تجهيز الرابط وتحليل المحتوى...**\nقد يستغرق هذا بضع ثوانٍ.", parse_mode='Markdown')
     
-    # إعدادات yt-dlp الاحترافية (محاكاة متصفح حقيقي)
+    # --- 🔑 إعدادات الكوكيز (تمت إضافتها لحل مشكلة يوتيوب) ---
+    # تأكد من وجود ملف cookies.txt في نفس مجلد البوت
+    cookies_file = "cookies.txt"
+    cookies_option = {'cookiefile': cookies_file} if os.path.exists(cookies_file) else {}
+    
+    # إعدادات yt-dlp الاحترافية (مع دمج الكوكيز)
     ydl_opts = {
         'quiet': True,
         'no_warnings': True,
@@ -152,10 +158,11 @@ def start_download(message, url, download_type):
             'Accept-Language': 'en-us,en;q=0.5',
             'Sec-Fetch-Mode': 'navigate',
         },
-        'outtmpl': str(DOWNLOAD_DIR / '%(id)s.%(ext)s'),  # قالب مؤقت
+        'outtmpl': str(DOWNLOAD_DIR / '%(id)s.%(ext)s'),
+        **cookies_option,  # <--- هذا السطر يضيف خيار الكوكيز إذا كان الملف موجوداً
     }
     
-    # إعدادات خاصة بنوع التحميل
+    # إعدادات خاصة بنوع التحميل (فيديو أو صوت) - تبقى كما هي
     if download_type == "audio":
         ydl_opts.update({
             'format': 'bestaudio/best',
@@ -169,9 +176,9 @@ def start_download(message, url, download_type):
         final_ext = 'mp3'
         send_func = bot.send_audio
         caption = "🎵 **تم استخراج الصوت بنجاح!**"
-    else:  # video
+    else:
         ydl_opts.update({
-            'format': 'best[height<=720]',  # حد أقصى 720p لتقليل الحجم، يمكن تغييره إلى 'best'
+            'format': 'best[height<=720]',
             'merge_output_format': 'mp4',
         })
         final_ext = 'mp4'
@@ -179,26 +186,20 @@ def start_download(message, url, download_type):
         caption = "🎬 **تم تحميل الفيديو بنجاح!**"
     
     try:
-        # تحديث رسالة الحالة
-        bot.edit_message_text("📥 **جاري التحميل والمعالجة...**\nقد يختلف الوقت حسب حجم الموجود.", chat_id, status_msg.message_id, parse_mode='Markdown')
+        bot.edit_message_text("📥 **جاري التحميل والمعالجة...**", chat_id, status_msg.message_id, parse_mode='Markdown')
         
         with YoutubeDL(ydl_opts) as ydl:
-            # جلب المعلومات والتحميل
             info = ydl.extract_info(url, download=True)
             if info is None:
                 raise Exception("لم يتم العثور على محتوى في هذا الرابط.")
             
-            # الحصول على اسم الملف النهائي (بعد المعالجة)
             filename = ydl.prepare_filename(info)
             if download_type == "audio":
-                # تحويل الامتداد إلى mp3 بعد المعالجة
                 filename = Path(filename).with_suffix('.mp3')
             else:
                 filename = Path(filename)
             
-            # التحقق من وجود الملف
             if not filename.exists():
-                # محاولة البحث عن أي ملف بنفس المعرف
                 file_id = info.get('id', 'unknown')
                 possible_files = list(DOWNLOAD_DIR.glob(f"{file_id}.*"))
                 if possible_files:
@@ -206,19 +207,15 @@ def start_download(message, url, download_type):
                 else:
                     raise Exception("فشل في العثور على الملف المحمل.")
             
-            # التحقق من حجم الملف
             file_size = filename.stat().st_size
             if file_size > MAX_FILE_SIZE:
                 bot.edit_message_text(
-                    f"⚠️ **الملف كبير جداً للإرسال عبر تليجرام**\n"
-                    f"الحجم: {file_size / (1024**2):.1f} ميجابايت (الحد الأقصى 50 ميجابايت)\n"
-                    f"❌ لا يمكن رفع هذا الملف.", 
+                    f"⚠️ **الملف كبير جداً للإرسال عبر تليجرام**\nالحجم: {file_size / (1024**2):.1f} ميجابايت (الحد الأقصى 50 ميجابايت)", 
                     chat_id, status_msg.message_id, parse_mode='Markdown'
                 )
                 delete_file(filename)
                 return
             
-            # رفع الملف مع إظهار حالة الرفع
             bot.edit_message_text("📤 **جاري رفع الملف إلى تليجرام...**", chat_id, status_msg.message_id, parse_mode='Markdown')
             bot.send_chat_action(chat_id, 'upload_video' if download_type == 'video' else 'upload_audio')
             
@@ -230,9 +227,27 @@ def start_download(message, url, download_type):
                     timeout=120
                 )
             
-            # حذف الملف بعد الإرسال
             delete_file(filename)
             bot.delete_message(chat_id, status_msg.message_id)
+    
+    except Exception as e:
+        error_str = str(e).lower()
+        if "age" in error_str or "confirm your age" in error_str:
+            hint = "🔞 هذا الفيديو مقيد بالفئة العمرية ولا يمكن تحميله دون تسجيل دخول."
+        elif "private" in error_str:
+            hint = "🔒 هذا المحتوى خاص أو محذوف."
+        elif "unavailable" in error_str:
+            hint = "❌ المحتوى غير متوفر (ربما تم حذفه أو حظره في منطقتك)."
+        elif "not found" in error_str:
+            hint = "❌ الرابط غير صالح أو لم نتمكن من الوصول إليه."
+        elif "sign in" in error_str or "bot" in error_str:
+            hint = "🍪 **مطلوب ملف كوكيز لتجاوز قيود يوتيوب.**\n\nقم بتحميل إضافة 'Get cookies.txt' للمتصفح، وسجل الدخول إلى يوتيوب، ثم صدر الكوكيز إلى ملف `cookies.txt` وضعه في مجلد البوت."
+        else:
+            hint = f"⚠️ حدث خطأ تقني: `{error_str[:150]}`"
+        
+        bot.edit_message_text(hint, chat_id, status_msg.message_id, parse_mode='Markdown')
+        for f in DOWNLOAD_DIR.glob(f"{message.chat.id}_*"):
+            delete_file(f)
     
     except Exception as e:
         error_str = str(e).lower()
