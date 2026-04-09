@@ -6,9 +6,13 @@ import re
 import threading
 from pathlib import Path
 
-# ================== التوكن مكتوب مباشرة ==================
-TOKEN = '8216426518:AAFdpWpZ8d3Jc2kTZXrxCW5mFvuQ9UPXcMI'
+# تعريف التوكن من متغيرات Railway
+TOKEN = os.getenv('BOT_TOKEN')
 bot = telebot.TeleBot(TOKEN)
+
+# الإعدادات
+DOWNLOAD_DIR = Path("downloads")
+DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 # ================== الإعدادات ==================
 DOWNLOAD_DIR = Path("downloads")
